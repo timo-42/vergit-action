@@ -1,0 +1,136 @@
+name: vergit
+description: Generate a PEP 440 version string from git state.
+author: timo
+
+inputs:
+  tool-version:
+    description: Release of the `vergit` tool to download, or `latest`.
+    default: latest
+  tool-repository:
+    description: >-
+      Repository hosting the `vergit` releases, as `owner/name`.
+    default: timo-42/vergit
+  tag-prefix:
+    description: Tag prefix to match and strip.
+    default: v
+  no-local:
+    description: Omit the +local label. Required when publishing to PyPI.
+    default: 'false'
+  next:
+    description: >-
+      Print the next version to tag instead of describing this commit:
+      `major`, `minor` or `patch`.
+    default: ''
+  next-phase:
+    description: >-
+      Make the next version a pre-release: `alpha`, `beta` or `rc`.
+      May be combined with `next`.
+    default: ''
+  with-prefix:
+    description: Prepend the tag prefix to `next` output, ready for `git tag`.
+    default: 'false'
+  fetch-tags:
+    description: >-
+      Deepen a shallow checkout first. actions/checkout defaults to depth 1,
+      which hides every tag; without this the version cannot be derived.
+    default: 'true'
+  working-directory:
+    description: Directory to read git state from.
+    default: '.'
+
+outputs:
+  version:
+    description: The generated version string.
+    value: ${{ steps.generate.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch tags
+      if: inputs.fetch-tags == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          git fetch --tags --force --unshallow
+        else
+          git fetch --tags --force
+        fi
+
+    - name: Install vergit
+      shell: bash
+      env:
+        TOOL_VERSION: ${{ inputs.tool-version }}
+        REPO: ${{ inputs.tool-repository }}
+        SERVER: ${{ github.server_url }}
+      run: |
+        set -euo pipefail
+        case "${RUNNER_OS}-${RUNNER_ARCH}" in
+          Linux-X64)    target=x86_64-unknown-linux-musl ;;
+          Linux-ARM64)  target=aarch64-unknown-linux-musl ;;
+          macOS-X64)    target=x86_64-apple-darwin ;;
+          macOS-ARM64)  target=aarch64-apple-darwin ;;
+          Windows-X64)  target=x86_64-pc-windows-msvc ;;
+          *)
+            echo "::error::no prebuilt vergit binary for ${RUNNER_OS}-${RUNNER_ARCH}"
+            exit 1
+            ;;
+        esac
+        suffix=""
+        case "$target" in *windows*) suffix=".exe" ;; esac
+
+        if [ "$TOOL_VERSION" = "latest" ]; then
+          url="${SERVER}/${REPO}/releases/latest/download/vergit-${target}${suffix}"
+        else
+          url="${SERVER}/${REPO}/releases/download/${TOOL_VERSION}/vergit-${target}${suffix}"
+        fi
+
+        dir="${RUNNER_TEMP}/vergit-tool"
+        mkdir -p "$dir"
+        curl --fail --silent --show-error --location --retry 3 \
+          --output "${dir}/vergit${suffix}" "$url"
+        chmod +x "${dir}/vergit${suffix}"
+        echo "$dir" >> "$GITHUB_PATH"
+
+    - name: Generate
+      id: generate
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        TAG_PREFIX: ${{ inputs.tag-prefix }}
+        NO_LOCAL: ${{ inputs.no-local }}
+        NEXT: ${{ inputs.next }}
+        NEXT_PHASE: ${{ inputs.next-phase }}
+        WITH_PREFIX: ${{ inputs.with-prefix }}
+      run: |
+        set -euo pipefail
+        args=(pep440 --tag-prefix "$TAG_PREFIX")
+
+        case "$NEXT" in
+          '')                 ;;
+          major|minor|patch)  args+=("--next-$NEXT") ;;
+          *) echo "::error::next must be major, minor or patch (got '$NEXT')"; exit 1 ;;
+        esac
+        case "$NEXT_PHASE" in
+          '')          ;;
+          alpha|beta)  args+=("--next-$NEXT_PHASE") ;;
+          rc)          args+=(--next-rc) ;;
+          *) echo "::error::next-phase must be alpha, beta or rc (got '$NEXT_PHASE')"; exit 1 ;;
+        esac
+
+        # --no-local and --with-prefix each apply to only one of the two modes.
+        if [ -z "$NEXT$NEXT_PHASE" ]; then
+          [ "$NO_LOCAL" = "true" ] && args+=(--no-local) || true
+        else
+          [ "$WITH_PREFIX" = "true" ] && args+=(--with-prefix) || true
+        fi
+
+        generated="$(vergit "${args[@]}")"
+        echo "version=${generated}" >> "$GITHUB_OUTPUT"
+        echo "$generated"
+        echo "### \`$generated\`" >> "$GITHUB_STEP_SUMMARY"
+
+branding:
+  icon: tag
+  color: purple
