@@ -15,8 +15,13 @@ on:
       phase:
         description: Optional pre-release phase (alpha, beta, or rc)
         required: false
-        type: string
+        type: choice
         default: ''
+        options:
+          - ''
+          - alpha
+          - beta
+          - rc
       tool-version:
         description: vergit release used to calculate the tag
         required: true
