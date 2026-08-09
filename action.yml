@@ -10,6 +10,11 @@ inputs:
     description: >-
       Repository hosting the `vergit` releases, as `owner/name`.
     default: timo-42/vergit
+  tool-server:
+    description: >-
+      Server hosting `tool-repository`, without a trailing slash. Set this to
+      your Gitea instance when downloading a self-hosted vergit release.
+    default: https://github.com
   tag-prefix:
     description: Tag prefix to match and strip.
     default: v
@@ -31,8 +36,8 @@ inputs:
     default: 'false'
   fetch-tags:
     description: >-
-      Deepen a shallow checkout first. actions/checkout defaults to depth 1,
-      which hides every tag; without this the version cannot be derived.
+      Deepen a shallow checkout first. Shallow checkouts hide tags, which
+      prevents the version from being derived.
     default: 'true'
   working-directory:
     description: Directory to read git state from.
@@ -63,20 +68,24 @@ runs:
       env:
         TOOL_VERSION: ${{ inputs.tool-version }}
         REPO: ${{ inputs.tool-repository }}
-        SERVER: ${{ github.server_url }}
+        SERVER: ${{ inputs.tool-server }}
       run: |
         set -euo pipefail
-        case "${RUNNER_OS}-${RUNNER_ARCH}" in
-          Linux-X64)    target=x86_64-unknown-linux-musl ;;
-          Linux-ARM64)  target=aarch64-unknown-linux-musl ;;
-          macOS-X64)    target=x86_64-apple-darwin ;;
-          macOS-ARM64)  target=aarch64-apple-darwin ;;
-          Windows-X64)  target=x86_64-pc-windows-msvc ;;
+        case "$(uname -s)" in
+          Linux)  os=unknown-linux-musl ;;
+          Darwin) os=apple-darwin ;;
+          MINGW*|MSYS*|CYGWIN*) os=pc-windows-msvc ;;
           *)
-            echo "::error::no prebuilt vergit binary for ${RUNNER_OS}-${RUNNER_ARCH}"
+            echo "unsupported OS: $(uname -s)" >&2
             exit 1
             ;;
         esac
+        case "$(uname -m)" in
+          x86_64|amd64)  arch=x86_64 ;;
+          aarch64|arm64) arch=aarch64 ;;
+          *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+        esac
+        target="${arch}-${os}"
         suffix=""
         case "$target" in *windows*) suffix=".exe" ;; esac
 
@@ -86,10 +95,14 @@ runs:
           url="${SERVER}/${REPO}/releases/download/${TOOL_VERSION}/vergit-${target}${suffix}"
         fi
 
-        dir="${RUNNER_TEMP}/vergit-tool"
+        dir="${RUNNER_TEMP:-/tmp}/vergit-tool"
         mkdir -p "$dir"
-        curl --fail --silent --show-error --location --retry 3 \
-          --output "${dir}/vergit${suffix}" "$url"
+        if ! curl --fail --silent --show-error --location --retry 3 \
+          --output "${dir}/vergit${suffix}" "$url"; then
+          echo "could not download ${url}" >&2
+          echo "For Gitea, set tool-server and pin tool-version to a release tag." >&2
+          exit 1
+        fi
         chmod +x "${dir}/vergit${suffix}"
         echo "$dir" >> "$GITHUB_PATH"
 
@@ -129,7 +142,9 @@ runs:
         generated="$(vergit "${args[@]}")"
         echo "version=${generated}" >> "$GITHUB_OUTPUT"
         echo "$generated"
-        echo "### \`$generated\`" >> "$GITHUB_STEP_SUMMARY"
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          echo "### \`$generated\`" >> "$GITHUB_STEP_SUMMARY"
+        fi
 
 branding:
   icon: tag
