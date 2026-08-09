@@ -8,7 +8,7 @@ Git state with [vergit](https://github.com/timo-42/vergit).
   with:
     fetch-depth: 0
 
-- uses: timo-42/vergit-action@v1
+- uses: timo-42/vergit-action@main
   id: version
 
 - run: echo "building ${{ steps.version.outputs.version }}"
@@ -16,6 +16,15 @@ Git state with [vergit](https://github.com/timo-42/vergit).
 
 `fetch-depth: 0` is important: shallow checkouts hide tags, which prevents
 vergit from deriving the correct version.
+
+The action currently defaults to `vergit` `v0.0.1b1`. Override
+`tool-version` to use another compatible release:
+
+```yaml
+- uses: timo-42/vergit-action@main
+  with:
+    tool-version: v0.0.1b1
+```
 
 ## Gitea Actions
 
@@ -38,7 +47,7 @@ installation supports the `releases/latest/download` endpoint.
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `tool-version` | `latest` | vergit release tag to download |
+| `tool-version` | `v0.0.1b1` | vergit release tag to download, or `latest` |
 | `tool-repository` | `timo-42/vergit` | Repository containing vergit releases |
 | `tool-server` | `https://github.com` | Server hosting the vergit release assets |
 | `tag-prefix` | `v` | Prefix to strip from version tags |

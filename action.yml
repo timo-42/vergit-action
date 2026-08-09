@@ -5,7 +5,7 @@ author: timo
 inputs:
   tool-version:
     description: Release of the `vergit` tool to download, or `latest`.
-    default: latest
+    default: v0.0.1b1
   tool-repository:
     description: >-
       Repository hosting the `vergit` releases, as `owner/name`.
