@@ -5,7 +5,7 @@ author: timo
 inputs:
   tool-version:
     description: Release of the `vergit` tool to download, or `latest`.
-    default: v0.0.1b1
+    default: v0.1.0
   tool-repository:
     description: >-
       Repository hosting the `vergit` releases, as `owner/name`.
@@ -90,17 +90,25 @@ runs:
         case "$target" in *windows*) suffix=".exe" ;; esac
 
         if [ "$TOOL_VERSION" = "latest" ]; then
-          url="${SERVER}/${REPO}/releases/latest/download/vergit-${target}${suffix}"
+          release_url="${SERVER}/${REPO}/releases/latest/download"
         else
-          url="${SERVER}/${REPO}/releases/download/${TOOL_VERSION}/vergit-${target}${suffix}"
+          release_url="${SERVER}/${REPO}/releases/download/${TOOL_VERSION}"
         fi
 
         dir="${RUNNER_TEMP:-/tmp}/vergit-tool"
         mkdir -p "$dir"
+        asset="vergit-${target}.zip"
+        archive="${dir}/${asset}"
         if ! curl --fail --silent --show-error --location --retry 3 \
-          --output "${dir}/vergit${suffix}" "$url"; then
-          echo "could not download ${url}" >&2
+          --output "$archive" "${release_url}/${asset}"; then
+          echo "could not download ${asset} from ${release_url}" >&2
           echo "For Gitea, set tool-server and pin tool-version to a release tag." >&2
+          exit 1
+        fi
+        if command -v unzip >/dev/null 2>&1; then
+          unzip -q -o "$archive" -d "$dir"
+        elif ! tar -xf "$archive" -C "$dir" 2>/dev/null; then
+          echo "could not extract ${asset}; install unzip" >&2
           exit 1
         fi
         chmod +x "${dir}/vergit${suffix}"
