@@ -1,5 +1,5 @@
 name: vergit
-description: Generate a PEP 440 version string from git state.
+description: Generate a version string from git state.
 author: timo
 
 inputs:
@@ -15,6 +15,9 @@ inputs:
       Server hosting `tool-repository`, without a trailing slash. Set this to
       your Gitea instance when downloading a self-hosted vergit release.
     default: https://github.com
+  format:
+    description: 'Output format: `pep440` or `docker`.'
+    default: pep440
   tag-prefix:
     description: Tag prefix to match and strip.
     default: v
@@ -119,6 +122,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
+        FORMAT: ${{ inputs.format }}
         TAG_PREFIX: ${{ inputs.tag-prefix }}
         NO_LOCAL: ${{ inputs.no-local }}
         NEXT: ${{ inputs.next }}
@@ -126,7 +130,11 @@ runs:
         WITH_PREFIX: ${{ inputs.with-prefix }}
       run: |
         set -euo pipefail
-        args=(pep440 --tag-prefix "$TAG_PREFIX")
+        case "$FORMAT" in
+          pep440|docker) ;;
+          *) echo "::error::format must be pep440 or docker (got '$FORMAT')"; exit 1 ;;
+        esac
+        args=(pep440 --format "$FORMAT" --tag-prefix "$TAG_PREFIX")
 
         case "$NEXT" in
           '')                 ;;
