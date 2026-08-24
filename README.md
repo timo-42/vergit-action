@@ -1,7 +1,7 @@
 # vergit-action
 
-Generate a [PEP 440](https://peps.python.org/pep-0440/) version string from
-Git state with [vergit](https://github.com/timo-42/vergit).
+Generate a [PEP 440](https://peps.python.org/pep-0440/) or Docker-compatible
+version string from Git state with [vergit](https://github.com/timo-42/vergit).
 
 ```yaml
 - uses: actions/checkout@v4
@@ -24,6 +24,16 @@ The action currently defaults to `vergit` `v0.1.0`. Override
 - uses: timo-42/vergit-action@main
   with:
     tool-version: latest
+```
+
+Set `format: docker` for a Docker-compatible version without a PEP 440 local
+version separator:
+
+```yaml
+- uses: timo-42/vergit-action@main
+  id: version
+  with:
+    format: docker
 ```
 
 ## Gitea Actions
@@ -50,6 +60,7 @@ installation supports the `releases/latest/download` endpoint.
 | `tool-version` | `v0.1.0` | vergit release tag to download, or `latest` |
 | `tool-repository` | `timo-42/vergit` | Repository containing vergit releases |
 | `tool-server` | `https://github.com` | Server hosting the vergit release assets |
+| `format` | `pep440` | Output format: `pep440` or `docker` |
 | `tag-prefix` | `v` | Prefix to strip from version tags |
 | `no-local` | `false` | Omit the PEP 440 local version label |
 | `next` | empty | Next release level: `major`, `minor`, or `patch` |
